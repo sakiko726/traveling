@@ -1,57 +1,45 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import requests
-from sklearn.ensemble import RandomForestRegressor
 
-st.title("旅行先レコメンド（気温API対応版）✈️")
+st.title("🌤️ 気温で選ぶおすすめ旅行先（日本）")
 
-# ====== データ用意 ======
-cities = {
-    "Tokyo": "東京",
-    "Kyoto": "京都",
-    "Osaka": "大阪",
-    "Sapporo": "札幌",
-    "Fukuoka": "福岡",
-    "Naha": "那覇"
+# 月ごとの都道府県別平均気温データ
+# 気象庁データの簡略版（だいたいの目安）
+monthly_temp = {
+    1: {"沖縄": 17, "鹿児島": 10, "東京": 6, "大阪": 7, "福岡": 8, "札幌": -3},
+    2: {"沖縄": 18, "鹿児島": 11, "東京": 7, "大阪": 8, "福岡": 9, "札幌": -3},
+    3: {"沖縄": 20, "鹿児島": 13, "東京": 10, "大阪": 11, "福岡": 11, "札幌": 1},
+    4: {"沖縄": 23, "鹿児島": 17, "東京": 15, "大阪": 16, "福岡": 16, "札幌": 7},
+    5: {"沖縄": 26, "鹿児島": 20, "東京": 19, "大阪": 20, "福岡": 20, "札幌": 12},
+    6: {"沖縄": 29, "鹿児島": 23, "東京": 22, "大阪": 23, "福岡": 23, "札幌": 16},
+    7: {"沖縄": 30, "鹿児島": 27, "東京": 26, "大阪": 27, "福岡": 27, "札幌": 20},
+    8: {"沖縄": 30, "鹿児島": 28, "東京": 27, "大阪": 28, "福岡": 28, "札幌": 22},
+    9: {"沖縄": 29, "鹿児島": 26, "東京": 24, "大阪": 25, "福岡": 25, "札幌": 18},
+    10: {"沖縄": 26, "鹿児島": 21, "東京": 18, "大阪": 19, "福岡": 20, "札幌": 12},
+    11: {"沖縄": 23, "鹿児島": 16, "東京": 13, "大阪": 14, "福岡": 15, "札幌": 5},
+    12: {"沖縄": 19, "鹿児島": 12, "東京": 8, "大阪": 9, "福岡": 10, "札幌": -1},
 }
 
-months = np.arange(1, 13)
+st.subheader("旅行する月を選んでください")
+month = st.selectbox("月", list(range(1, 13)))
 
-df = pd.DataFrame([
-    [city, month, np.random.randint(1, 100)]
-    for city in cities.keys() for month in months
-], columns=["City", "Month", "Crowd"])
+# 快適とされる気温：15〜25℃
+TARGET_TEMP = 20
 
-X = df[["Month"]]
-y = df["Crowd"]
-model = RandomForestRegressor()
-model.fit(X, y)
+if st.button("おすすめを表示"):
+    temps = monthly_temp[month]
 
-# ====== 入力 ======
-st.subheader("旅行条件を入力")
-month = st.slider("旅行する月", 1, 12, 11)
-city = st.selectbox("都市を選択", list(cities.keys()))
+    # 「快適気温20℃」に最も近い都道府県を選ぶ
+    best_pref = min(temps, key=lambda x: abs(temps[x] - TARGET_TEMP))
+    best_temp = temps[best_pref]
 
-# ====== 天気API ======
-api_key = st.secrets["openweather_api"]
-url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ja"
+    st.success(f"📅 {month}月におすすめの旅行先は…")
+    st.markdown(f"### 🏝️ **{best_pref}（平均気温：{best_temp}℃）**")
+    st.caption("快適気温（20℃）に最も近い場所を選んでいます。")
 
-response = requests.get(url)
+    # 全都道府県ランキングも表示
+    st.subheader("気温が近い順ランキング")
+    sorted_prefs = sorted(temps.items(), key=lambda x: abs(x[1] - TARGET_TEMP))
 
-if response.status_code == 200:
-    weather = response.json()
-    temp = weather["main"]["temp"]
-    st.write(f"📡 現在の気温: **{temp}℃** in {cities[city]}")
-else:
-    st.warning("APIエラー。仮の気温を使用します")
-    temp = 18
+    for pref, temp in sorted_prefs:
+        st.write(f"{pref}：{temp}℃")
 
-# ====== 推薦 ======
-input_df = pd.DataFrame([[month]], columns=["Month"])
-pred_crowd = model.predict(input_df)[0]
-
-st.write("## 🧭 おすすめ旅行先")
-st.write(f"- 都市: **{cities[city]}**")
-st.write(f"- 予測混雑度: **{pred_crowd:.1f}%**")
-st.write(f"- 気温: **{temp}℃**")
